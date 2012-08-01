@@ -22,9 +22,12 @@ public class TorNetViz extends PApplet {
 	private final int WIDTH = 1024;
 	private final int HEIGHT = 600;
 	private final int FRAMERATE = 10;
-	private final int INPUT_ONE_DAY_IN_SECS = 20; // TODO: make configurable
-	private final String STARTING_INPUT_STRING = "2012-07-31_1"; // TODO: make configurable
-	private final String ENDING_INPUT_STRING = "2012-08-31_1"; // TODO: make configurable
+	
+	// configured in setup
+	private final String DIRPATH;
+	private final String STARTING_INPUT_STRING;
+	private final String ENDING_INPUT_STRING;
+	private final int INPUT_ONE_DAY_IN_SECS;
 	
 	// Hookup to the MaxMind database.
 	LookupService geoLookup;
@@ -118,9 +121,11 @@ public class TorNetViz extends PApplet {
 		private Pin LastKnown;
 		
 		// Constructor.
-		public Pin(PApplet p, PImage mapImage, String[] pieces) {
+		public Pin(PApplet p, PImage mapImage, String info) {
 			// Process the strings to get the IP address and the timestamp.
-			// [0] = ip, [1] = timestamp, [2] = response time, [3] = last known ip
+			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
+			
+			String[] pieces = info.split("\t");
 			
 			// Acquire the latitude and longitude.
 			float[] latlon = getLatLonByIP(pieces[0]);
@@ -319,9 +324,22 @@ public class TorNetViz extends PApplet {
 			dbConnected = false;
 		}
 		
+		// Set the command line arguments to global variables.
+		DIRPATH = args[2];
+		STARTING_INPUT_STRING = args[3];
+		ENDING_INPUT_STRING = args[4];
+		
+		// File format regex stuff here.
+		try {
+			INPUT_ONE_DAY_IN_SECS = parseInt(args[5]);
+		} catch (NumberFormatException e) {
+			System.err.println("Argument must be an integer.");
+			System.exit(0);
+		}
+		
 		// Setup the clock at a rounded increment.
 			// [data time] 		(1440 mins / day) divided by
-			// [animation time] (FRAMERATE frames/second * INPUT second / day)
+			// [animation time] (FRAMERATE frames/second * INPUT seconds / day)
 		int minIncr = 1440 / (FRAMERATE * INPUT_ONE_DAY_IN_SECS);
 		clock = new TimeStamp(STARTING_INPUT_STRING, minIncr);
 		
@@ -340,7 +358,7 @@ public class TorNetViz extends PApplet {
 	// Make Pin objects from each line of the input files.
 	// All .viz files are in a single location, labelled by timestamp.
 	public void CreatePins() {
-		File measures = new File("./connectivity/viz");
+		File measures = new File(DIRPATH);
 		
 		// This filter returns the directories that are equal to or
 		// after the command line arg starting timestamp.
@@ -361,54 +379,23 @@ public class TorNetViz extends PApplet {
 			    scotty = new Scanner(vizFiles[i]);
 			} catch(java.io.FileNotFoundException e) {
 			    e.printStackTrace();
-			    return;
+			    continue;
 			}
-			
-			// Get the first line, held outside the loop.
-			String[] currPin = scotty.nextLine().split("\t");
 			
 			// Create a new list of Pins.
 			List<Pin> pinJar = new LinkedList<Pin>();
 			
 			// Running until there are no more lines in the file:
-			boolean keepRunning = true;
-			while(keepRunning) {
+			while(scotty.hasNextLine()) {
 				
-				// Create a Pin from currPin, put it in the list.
-				pinJar.add(new Pin(this, mapImage, currPin));
-				
-				// Get the next line.
-				String[] nextPin = scotty.nextLine().split("\t");
-				
-				// While currPin and nextPin have the same timestamp,
-				// Keep making pins and pushing them onto the list.
-				while (currPin[1].compareTo(nextPin[1]) == 0) {
-					pinJar.add(new Pin(this, mapImage, nextPin));
-					
-					// There are no more lines to read:
-					if (!scotty.hasNextLine()) {
-						keepRunning = false;
-						break;
-					}
-					
-					// Drop the last pin, get the next pin.
-					currPin = nextPin;
-					nextPin = scotty.nextLine().split("\t");
-				}
-				
-				// When they no longer have the same timestamp, or out of lines:
-				
-				// Package the Pins in a PinCollection, put it in the PriorityQueue.
-				// Ensures usage of currPin's timestamp, which is the same
-				// as the rest of the list.
-				PinsToDraw.add(new PinCollection(currPin[1], pinJar));
-				
-				// Create a new list to fill with pins.
-				pinJar = new LinkedList<Pin>();
-				
-				// Save the new timestamp'd nextPin into currPin.
-				currPin = nextPin;
+				// Create a Pin from the next line, put it in the list.
+				pinJar.add(new Pin(this, mapImage, scotty.nextLine()));
 			}
+			
+			// Package the Pins in a PinCollection, put it in the PriorityQueue.
+			// Ensures usage of currPin's timestamp, which is the same
+			// as the rest of the list.
+			PinsToDraw.add(new PinCollection(vizFiles[i].getName(), pinJar));	
 		}
 	}
 	
@@ -458,10 +445,7 @@ public class TorNetViz extends PApplet {
 		return latlon;
 	}
 
-	public static void main(String args[]) {
-		// Ratio of simulated to real-time seconds is a command line arg to
-		// the program, and needs to be encapsulated.
-		PApplet.main(new String[] { "--present", "com.p2pbr.netviz.TorNetViz" });
-	}
+	// Removed main method, because it's handled by Runner, I think.
+	// Easy to reinstate from NetViz if needed.
 }
 

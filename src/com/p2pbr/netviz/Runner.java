@@ -11,9 +11,17 @@ public class Runner {
 		}
 	    System.loadLibrary("jpcap");
 	    if (!args[0].contains("Net")) {
-		PApplet.main(new String[] { "--present", "com.p2pbr.netviz.Net" + args[0] });
-	    } else {
-		PApplet.main(new String[] { "--present", "com.p2pbr.netviz." + args[0] });
+			PApplet.main(new String[] { "--present", "com.p2pbr.netviz.Net" + args[0] });
+	    } else if (args[0].compareToIgnoreCase("TorNetViz") == 0) {
+			if (args.length != 5) {
+				System.out.println("TorNetViz requires four arguments:");
+				System.out.println("Directory containing data files | starting time | ending time | seconds per one day of data");
+				System.out.println("time format: YY_MM_DD-HR:MIN:SEC");
+				return;
+			}
+			PApplet.main(new String[] { "--present", "com.p2pbr.netviz.TorNetViz", args[1], args[2], args[3], args[4] });
+		} else {
+			PApplet.main(new String[] { "--present", "com.p2pbr.netviz." + args[0] });
 	    }
 	}
 }
