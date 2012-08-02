@@ -24,10 +24,10 @@ public class TorNetViz extends PApplet {
 	private final int FRAMERATE = 10;
 	
 	// configured in setup
-	private final String DIRPATH;
-	private final String STARTING_INPUT_STRING;
-	private final String ENDING_INPUT_STRING;
-	private final int INPUT_ONE_DAY_IN_SECS;
+	private String DIRPATH;
+	private String STARTING_INPUT_STRING;
+	private String ENDING_INPUT_STRING;
+	private int INPUT_ONE_DAY_IN_SECS;
 	
 	// Hookup to the MaxMind database.
 	LookupService geoLookup;
@@ -142,7 +142,7 @@ public class TorNetViz extends PApplet {
 			// Set the LastKnown address Pin, if this is unreached.
 			if (response == -1) {
 				// Creates a string to be processed by the next Pin constructor.
-				String[] LKPin = {pieces[3], pieces[1], "-2", "-1"};
+				String LKPin = pieces[3] + "\t" + pieces[1] + "\t-2\t-1";
 				LastKnown = new Pin(p, mapImage, LKPin);
 			} else {
 				LastKnown = null;
