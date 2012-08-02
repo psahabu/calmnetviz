@@ -10,7 +10,6 @@ public class Runner {
 			return;
 		}
 	    System.loadLibrary("jpcap");
-	    
 /*	 Compiler was unhappy with this code:
  * java.lang.RuntimeException: java.lang.ClassNotFoundException: com.p2pbr.netviz.Net${target}
 
@@ -18,7 +17,6 @@ public class Runner {
 			PApplet.main(new String[] { "--present", "com.p2pbr.netviz.Net" + args[0] });
 	    } else 
 */
-
 		if (args[0].compareToIgnoreCase("TorNetViz") == 0) {
 			if (args.length != 5) {
 				System.out.println("TorNetViz requires four arguments:");
@@ -28,7 +26,6 @@ public class Runner {
 			}
 			PApplet.main(new String[] { "--present", "com.p2pbr.netviz.TorNetViz", args[1], args[2], args[3], args[4] });
 		}
-		
 /*	Compiler was also unhappy with this code:
  * java.lang.RuntimeException: java.lang.ClassNotFoundException: com.p2pbr.netviz.${target}
 		
@@ -36,6 +33,5 @@ public class Runner {
 			PApplet.main(new String[] { "--present", "com.p2pbr.netviz." + args[0] });
 	    }  
 */
- 
 	}
 }
