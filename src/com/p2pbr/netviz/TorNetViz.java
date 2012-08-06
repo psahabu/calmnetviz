@@ -6,6 +6,7 @@ import com.maxmind.geoip.*;
 import java.util.*;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileNotFoundException;
 
 public class TorNetViz extends PApplet {
 	private static final long serialVersionUID = 9075470452122575298L;
@@ -39,10 +40,10 @@ public class TorNetViz extends PApplet {
 	// A priority queue of Pins. These are all loaded in at the
 	// beginning of the program, and are popped off and drawn if the
 	// LinkedList's timestamp matches the simulated clock.
-	private Queue<PinCollection> PinsToDraw = new PriorityQueue<PinCollection>();
+	private Queue<PinCollection> PinsToDraw;
 	
 	// A linked list to hold Pins until they're finished drawing.
-	private List<PinCollection> DrawingPins = new LinkedList<PinCollection>();
+	private List<PinCollection> DrawingPins;
 
 	// An object that keep together bunches of Pins and labels them with
 	// a common timestamp. More memory efficient, nice encapsulation.
@@ -235,7 +236,7 @@ public class TorNetViz extends PApplet {
 		// Constructs a timestamp from a particular format, and also
 		// initializes the advancement mechanism.
 		public TimeStamp(String s, int minInc) {
-			String[] chopped = s.split("[_-:]");
+			String[] chopped = s.split("[_\\-:]");
 			for (int i = 0; i < 4; i++) {
 				int temp = parseInt(chopped[i]);
 				switch (i) {
@@ -324,17 +325,11 @@ public class TorNetViz extends PApplet {
 			dbConnected = false;
 		}
 		
-		// Set the command line arguments to global variables.
-		DIRPATH = args[2];
-		STARTING_INPUT_STRING = args[3];
-		ENDING_INPUT_STRING = args[4];
-		
-		// File format regex stuff here.
+		// From TorArgs.ini in the local directory, set the global variables.
 		try {
-			INPUT_ONE_DAY_IN_SECS = parseInt(args[5]);
-		} catch (NumberFormatException e) {
-			System.err.println("Argument must be an integer.");
-			System.exit(0);
+			ProcessArguments();
+		} catch (FileNotFoundException ignored) {
+			ignored.printStackTrace();
 		}
 		
 		// Setup the clock at a rounded increment.
@@ -344,7 +339,11 @@ public class TorNetViz extends PApplet {
 		clock = new TimeStamp(STARTING_INPUT_STRING, minIncr);
 		
 		// Fetch and process files into Pins.
-		CreatePins();
+		try {
+			CreatePins();
+		} catch (FileNotFoundException ignored) {
+			ignored.printStackTrace();
+		}
 		
 		// load the map image
 		mapImage = loadImage(mapFilename);
@@ -355,10 +354,31 @@ public class TorNetViz extends PApplet {
 		frameRate(FRAMERATE);
 	}
 	
+	// Pulls text from TorArgs.ini in the working directory, uses each
+	// line as a global variable. Must be properly formatted.
+	private void ProcessArguments() throws FileNotFoundException {
+
+		// Setup the scanner on the file.
+		Scanner theArgs = new Scanner(new File("TorArgs.ini"));
+	
+		// Set each line to global variables.
+		DIRPATH = theArgs.nextLine(); // first line
+		STARTING_INPUT_STRING = theArgs.nextLine(); // second line
+		ENDING_INPUT_STRING = theArgs.nextLine(); // third line
+		INPUT_ONE_DAY_IN_SECS = theArgs.nextInt(); // fourth line
+	}
+	
 	// Make Pin objects from each line of the input files.
 	// All .viz files are in a single location, labelled by timestamp.
-	public void CreatePins() {
+	private void CreatePins() throws FileNotFoundException {
+		
+		// Create the pin containers.
+		PinsToDraw = new PriorityQueue<PinCollection>();
+		DrawingPins = new LinkedList<PinCollection>();
+		
+		// Open the directory.
 		File measures = new File(DIRPATH);
+		assert(measures != null);
 		
 		// This filter returns the directories that are equal to or
 		// after the command line arg starting timestamp.

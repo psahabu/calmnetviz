@@ -18,13 +18,7 @@ public class Runner {
 	    } else 
 */
 		if (args[0].compareToIgnoreCase("TorNetViz") == 0) {
-			if (args.length != 5) {
-				System.out.println("TorNetViz requires four arguments:");
-				System.out.println("Directory containing data files | starting time | ending time | seconds per one day of data");
-				System.out.println("time format: YY_MM_DD-HR:MIN:SEC");
-				return;
-			}
-			PApplet.main(new String[] { "--present", "com.p2pbr.netviz.TorNetViz", args[1], args[2], args[3], args[4] });
+			PApplet.main(new String[] { "--present", "com.p2pbr.netviz.TorNetViz" });
 		}
 /*	Compiler was also unhappy with this code:
  * java.lang.RuntimeException: java.lang.ClassNotFoundException: com.p2pbr.netviz.${target}
