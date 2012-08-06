@@ -23,6 +23,7 @@ public class TorNetViz extends PApplet {
 	private final int WIDTH = 1024;
 	private final int HEIGHT = 600;
 	private final int FRAMERATE = 10;
+	private final int DOT_RADIUS = 4;
 	
 	// configured in setup
 	private String DIRPATH;
@@ -41,9 +42,6 @@ public class TorNetViz extends PApplet {
 	// beginning of the program, and are popped off and drawn if the
 	// LinkedList's timestamp matches the simulated clock.
 	private Queue<PinCollection> PinsToDraw;
-	
-	// A linked list to hold Pins until they're finished drawing.
-	private List<PinCollection> DrawingPins;
 
 	// An object that keep together bunches of Pins and labels them with
 	// a common timestamp. More memory efficient, nice encapsulation.
@@ -53,29 +51,21 @@ public class TorNetViz extends PApplet {
 		private TimeStamp pinTime;
 		
 		// Stores all the Pins in a queue.
-		private List<Pin> pins;
+		private Queue<Pin> pins;
 		
 		// Constructor makes a TimeStamp from a string, 
-		public PinCollection(String s, List<Pin> newPins) {
+		public PinCollection(String s, Queue<Pin> newPins) {
 			pinTime = new TimeStamp(s);
 			pins = newPins;
 		}
 		
 		// Iterates through all the Pins and draws them all.
-		// If the list is empty, returns 0.
-		public boolean drawThesePins() {
+		public void drawThesePins() {
 			
-			// Drawing everything in the LinkedList.
-			Iterator<Pin> iter = pins.iterator();
-			while (iter.hasNext()) {
-				Pin p = iter.next();
-				boolean keep = p.drawSelf();
-				if (!keep) {
-					iter.remove();
-				}
+			// Drawing everything in the Queue.
+			while (!pins.isEmpty()) {
+				pins.remove().drawSelf();
 			}
-			
-			return !pins.isEmpty();
 		}
 		
 		// Return the pinTime.
@@ -100,19 +90,6 @@ public class TorNetViz extends PApplet {
 		public PImage mapImage;
 		public float x;
 		public float y; 
-		
-		// Constants to be used across all pins.
-		private final int STATE_STATIC = 0;
-		private final int STATE_ANIMATE = 1;
-		private final int ANIMATION_MAX = 20;
-		private final int ANIMATION_RADIUS = 400;
-		private final int PULSE_MAX = 5;
-		
-		// Animation related fields.
-		public int state;
-		public int animation;
-		private boolean pulseUp = true;
-		private int pulse = -1 * PULSE_MAX;
 		
 		// Response time. Unreached = -1, "last known" Pin = -2.
 		// Used for drawing.
@@ -148,23 +125,10 @@ public class TorNetViz extends PApplet {
 			} else {
 				LastKnown = null;
 			}
-			
-			// Initialize animation stuff.
-			this.state = STATE_ANIMATE;
-			this.animation = 1;
-		}
-		
-		// More animation stuff. (ask Will, maybe?)
-		private int pulseStep() {
-			if (pulseUp) { pulse++; }
-			else         { pulse--; }
-			if (pulse >= PULSE_MAX)      { pulseUp = false; }
-			if (pulse <= PULSE_MAX * -1) { pulseUp = true; }
-			return pulse;
 		}
 		
 		// Well duh.
-		public boolean drawSelf() {
+		public void drawSelf() {
 			
 			// Draw the last known reached location, if unreached.
 			if (LastKnown != null) {
@@ -185,33 +149,8 @@ public class TorNetViz extends PApplet {
 			}
 			
 			// Actually draw the sucker.
-			int rad = 8;
-			rad += this.pulseStep();
-			if (state == STATE_STATIC) {
-				fill(0x00, 0x00, 0x00, 0x00);
-				stroke(red, green, blue);
-				ellipse(this.x, this.y, rad, rad);
-				return true;
-			} else if (state == STATE_ANIMATE) {
-				// circle starts large, gets small
-				// starts fully opaque, becomes transparent
-				fill(0x00, 0x00, 0x00, 0x00);
-				stroke(red, green, blue);
-				ellipse(this.x, this.y, ANIMATION_RADIUS/this.animation, ANIMATION_RADIUS/this.animation);
-		
-				// circle starts small, gets to target size
-				// starts transparent, becomes opaque
-				fill(red, green, blue, 0x00);
-				stroke(red, green, blue);
-				ellipse(this.x, this.y, rad - (rad/this.animation), rad - (rad/this.animation));
-		
-				this.animation++;
-				if (this.animation >= ANIMATION_MAX) {
-					this.state = STATE_STATIC; 
-				}
-				return true;
-			}
-			return false;
+			fill(red, green, blue);
+			ellipse(this.x, this.y, DOT_RADIUS, DOT_RADIUS);
 		}
 	}
 	
@@ -325,6 +264,14 @@ public class TorNetViz extends PApplet {
 			dbConnected = false;
 		}
 		
+		// load the map image
+		mapImage = loadImage(mapFilename);		
+		size(WIDTH, HEIGHT);
+		background(0x00, 0x55, 0xcc);
+		
+		// set the frame rate for Processing
+		frameRate(FRAMERATE);
+		
 		// From TorArgs.ini in the local directory, set the global variables.
 		try {
 			ProcessArguments();
@@ -345,13 +292,8 @@ public class TorNetViz extends PApplet {
 			ignored.printStackTrace();
 		}
 		
-		// load the map image
-		mapImage = loadImage(mapFilename);
-		size(WIDTH, HEIGHT);
-		background(0x00, 0x55, 0xcc);
-		
-		// set the frame rate for Processing
-		frameRate(FRAMERATE);
+		// draw map
+		image(mapImage, mapX, mapY);
 	}
 	
 	// Pulls text from TorArgs.ini in the working directory, uses each
@@ -374,11 +316,9 @@ public class TorNetViz extends PApplet {
 		
 		// Create the pin containers.
 		PinsToDraw = new PriorityQueue<PinCollection>();
-		DrawingPins = new LinkedList<PinCollection>();
 		
 		// Open the directory.
 		File measures = new File(DIRPATH);
-		assert(measures != null);
 		
 		// This filter returns the directories that are equal to or
 		// after the command line arg starting timestamp.
@@ -397,13 +337,13 @@ public class TorNetViz extends PApplet {
 			Scanner scotty;
 			try {
 			    scotty = new Scanner(vizFiles[i]);
-			} catch(java.io.FileNotFoundException e) {
+			} catch(FileNotFoundException e) {
 			    e.printStackTrace();
 			    continue;
 			}
 			
 			// Create a new list of Pins.
-			List<Pin> pinJar = new LinkedList<Pin>();
+			Queue<Pin> pinJar = new LinkedList<Pin>();
 			
 			// Running until there are no more lines in the file:
 			while(scotty.hasNextLine()) {
@@ -415,7 +355,7 @@ public class TorNetViz extends PApplet {
 			// Package the Pins in a PinCollection, put it in the PriorityQueue.
 			// Ensures usage of currPin's timestamp, which is the same
 			// as the rest of the list.
-			PinsToDraw.add(new PinCollection(vizFiles[i].getName(), pinJar));	
+			PinsToDraw.add(new PinCollection(vizFiles[i].getName(), pinJar));
 		}
 	}
 	
@@ -423,27 +363,13 @@ public class TorNetViz extends PApplet {
 	// Check the pins in the PriorityQueue, put the appropriate ones
 	// into the LinkedList. Draw all the pins in the LinkedList.
 	public void draw() {
-		// draw map
-		image(mapImage, mapX, mapY);
-		
 		// Advance the clock by a precalculated amount of time.
 		clock.AdvanceClock();
 		
-		// Now we have to update the Pins.
-		// Move PinCollections from the PriorityQueue over into the
-		// List, if their timestamp is less than or equal to the clock time.
-		while (PinsToDraw.peek().getPinTime().compareTo(clock) <= 0) {
-			DrawingPins.add(PinsToDraw.remove());
-		}
-		
-		// Keep drawing everything in the LinkedList.
-		Iterator<PinCollection> iter = DrawingPins.iterator();
-		while (iter.hasNext()) {
-			PinCollection p = iter.next();
-			boolean keep = p.drawThesePins();
-			if (!keep) {
-				iter.remove();
-			}
+		// Now we have to update the Pins.	
+		// Keep drawing everything in the Priority Queue.
+		while (!PinsToDraw.isEmpty() && PinsToDraw.peek().getPinTime().compareTo(clock) <= 0) {
+			PinsToDraw.remove().drawThesePins();
 		}
 	}
 	
