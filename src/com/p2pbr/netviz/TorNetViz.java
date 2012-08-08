@@ -23,10 +23,11 @@ public class TorNetViz extends PApplet {
 	private final int WIDTH = 1024;
 	private final int HEIGHT = 600;
 	private final int FRAMERATE = 10;
-	private final int DOT_RADIUS = 4;
+	private final int DOT_RADIUS = 2;
 	
 	// configured in setup
 	private String DIRPATH;
+	private String PACKET_MODE;
 	private String STARTING_INPUT_STRING;
 	private String ENDING_INPUT_STRING;
 	private int INPUT_ONE_DAY_IN_SECS;
@@ -99,11 +100,9 @@ public class TorNetViz extends PApplet {
 		private Pin LastKnown;
 		
 		// Constructor.
-		public Pin(PApplet p, PImage mapImage, String info) {
+		public Pin(PApplet p, PImage mapImage, String[] pieces) {
 			// Process the strings to get the IP address and the timestamp.
 			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
-			
-			String[] pieces = info.split("\t");
 			
 			// Acquire the latitude and longitude.
 			float[] latlon = getLatLonByIP(pieces[0]);
@@ -119,8 +118,8 @@ public class TorNetViz extends PApplet {
 			
 			// Set the LastKnown address Pin, if this is unreached.
 			if (response == -1) {
-				// Creates a string to be processed by the next Pin constructor.
-				String LKPin = pieces[3] + "\t" + pieces[1] + "\t-2\t-1";
+				// Creates a string array to be processed by the next Pin constructor.
+				String[] LKPin = {pieces[3], pieces[1], "-2", "-1"};
 				LastKnown = new Pin(p, mapImage, LKPin);
 			} else {
 				LastKnown = null;
@@ -150,6 +149,7 @@ public class TorNetViz extends PApplet {
 			
 			// Actually draw the sucker.
 			fill(red, green, blue);
+			stroke(red, green, blue);
 			ellipse(this.x, this.y, DOT_RADIUS, DOT_RADIUS);
 		}
 	}
@@ -305,9 +305,10 @@ public class TorNetViz extends PApplet {
 	
 		// Set each line to global variables.
 		DIRPATH = theArgs.nextLine(); // first line
-		STARTING_INPUT_STRING = theArgs.nextLine(); // second line
-		ENDING_INPUT_STRING = theArgs.nextLine(); // third line
-		INPUT_ONE_DAY_IN_SECS = theArgs.nextInt(); // fourth line
+		PACKET_MODE = theArgs.nextLine(); // second line
+		STARTING_INPUT_STRING = theArgs.nextLine(); // third line
+		ENDING_INPUT_STRING = theArgs.nextLine(); // fourth line
+		INPUT_ONE_DAY_IN_SECS = theArgs.nextInt(); // fifth line
 	}
 	
 	// Make Pin objects from each line of the input files.
@@ -329,10 +330,13 @@ public class TorNetViz extends PApplet {
 			}
 		};
 		
+		// Determine if all packets are wanted.
+		boolean allPackets = PACKET_MODE.equalsIgnoreCase("ALL");
+
 		// For each file in the array:
 		File[] vizFiles = measures.listFiles(filter);
 		for (int i = 0; i < vizFiles.length; i++) {
-			
+
 			// Create a new scanner.
 			Scanner scotty;
 			try {
@@ -344,12 +348,43 @@ public class TorNetViz extends PApplet {
 			
 			// Create a new list of Pins.
 			Queue<Pin> pinJar = new LinkedList<Pin>();
-			
-			// Running until there are no more lines in the file:
-			while(scotty.hasNextLine()) {
 				
-				// Create a Pin from the next line, put it in the list.
-				pinJar.add(new Pin(this, mapImage, scotty.nextLine()));
+			// Read in a line of data.
+			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
+			String[] pieces = scotty.nextLine().split("\t");
+			
+			// If it's Web data, reconfigure it.
+			if (pieces.length < 5) {
+				String[] webArray = {pieces[0], pieces[1], "0", "0", pieces[3]};
+				pieces = webArray;
+			}
+			
+			// If the application layer matches or ALL pins are wanted,
+			// create a Pin from the next line, put it in the list.
+			// Make pins from the rest of the file.
+			if (pieces[4].equalsIgnoreCase(PACKET_MODE) || allPackets) {
+				pinJar.add(new Pin(this, mapImage, pieces));
+				
+				// Running until there are no more lines in the file:
+				while(scotty.hasNextLine()) {
+					
+					// Read in a line of data.
+					// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
+					pieces = scotty.nextLine().split("\t");
+					
+					// If it's Web data, reconfigure it.
+					if (pieces.length < 5) {
+						String[] webArray = {pieces[0], pieces[1], "0", "0", pieces[3]};
+						pieces = webArray;
+					}
+					
+					// Add it into the container.
+					pinJar.add(new Pin(this, mapImage, pieces));
+				}
+				
+			// Otherwise, continue to the next file.	
+			} else {
+				continue;
 			}
 			
 			// Package the Pins in a PinCollection, put it in the PriorityQueue.
