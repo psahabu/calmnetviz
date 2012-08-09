@@ -1,0 +1,6 @@
+Absolute directory.					Contains the visualizer data. (.viz)
+Type of packets to display.			ICMP | UDP | WEB | ALL
+Start time.							format: YY_MM_DD-HR:MI:SE
+End time.							format: YY_MM_DD-HR:MI:SE
+Approx time scale.					Integer, in seconds / 24 hours of data.
+Maximum response time.				Integer, in ms. All reached packets scale to this linearly.
