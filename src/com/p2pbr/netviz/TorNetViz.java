@@ -31,6 +31,7 @@ public class TorNetViz extends PApplet {
 	private String STARTING_INPUT_STRING;
 	private String ENDING_INPUT_STRING;
 	private int INPUT_ONE_DAY_IN_SECS;
+	private int MAX_RESPONSE; // in ms
 	
 	// Hookup to the MaxMind database.
 	LookupService geoLookup;
@@ -90,11 +91,12 @@ public class TorNetViz extends PApplet {
 		@SuppressWarnings("unused")
 		public PImage mapImage;
 		public float x;
-		public float y; 
+		public float y;
 		
-		// Response time. Unreached = -1, "last known" Pin = -2.
-		// Used for drawing.
-		private float response;
+		// Color. Used for drawing.		
+		int red = 0x00;
+		int green = 0x00;
+		// int blue is excluded, as it's never modified.	
 		
 		// Last known address Pin, if unreached. Otherwise, null.
 		private Pin LastKnown;
@@ -113,8 +115,20 @@ public class TorNetViz extends PApplet {
 			this.x = map(latlon[1], -180, 180, mapX, mapX+mapImage.width); // uses lon
 			this.y = map(latlon[0], 90, -90, mapY, mapY+mapImage.height); // uses lat
 			
-			// Set the response time.
-			response = parseFloat(pieces[2]);
+			// Get the response time.
+			float response = parseFloat(pieces[2]);
+			
+			// Determine color based on response time.
+			if (response == -1 || response > MAX_RESPONSE) { // unreached, red
+				this.red = 0xff;
+				this.green = 0x00;
+			} else if (response == -2) { // last known for unreached, yellow
+				this.red = 0xff;
+				this.green = 0xff;
+			} else { // reached; intensity of green correlates to speed.
+				this.red = (int) (0xff * (response / MAX_RESPONSE));
+				this.green = (int) (0xff * ((MAX_RESPONSE - response) / MAX_RESPONSE));
+			}
 			
 			// Set the LastKnown address Pin, if this is unreached.
 			if (response == -1) {
@@ -134,22 +148,9 @@ public class TorNetViz extends PApplet {
 				LastKnown.drawSelf();
 			}
 			
-			// Determine color based on response time.
-			int red = 0x00;
-			int green = 0x00;
-			int blue = 0x00;
-			if (response == -1) { // unreached
-				red = 0xff;
-			} else if (response == -2) { // last known for unreached
-				red = 0xff;
-				green = 0xff;
-			} else { // reached (can modify for speed later)
-				green = 0xff;
-			}
-			
 			// Actually draw the sucker.
-			fill(red, green, blue);
-			stroke(red, green, blue);
+			fill(red, green, 0x00);
+			stroke(red, green, 0x00);
 			ellipse(this.x, this.y, DOT_RADIUS, DOT_RADIUS);
 		}
 	}
@@ -309,6 +310,7 @@ public class TorNetViz extends PApplet {
 		STARTING_INPUT_STRING = theArgs.nextLine(); // third line
 		ENDING_INPUT_STRING = theArgs.nextLine(); // fourth line
 		INPUT_ONE_DAY_IN_SECS = theArgs.nextInt(); // fifth line
+		MAX_RESPONSE = theArgs.nextInt(); // sixth line
 	}
 	
 	// Make Pin objects from each line of the input files.
