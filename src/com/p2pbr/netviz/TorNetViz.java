@@ -347,52 +347,81 @@ public class TorNetViz extends PApplet {
 			    e.printStackTrace();
 			    continue;
 			}
-			
-			// Create a new list of Pins.
-			Queue<Pin> pinJar = new LinkedList<Pin>();
-				
+						
 			// Read in a line of data.
 			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
-			String[] pieces = scotty.nextLine().split("\t");
+			String[] currPin = scotty.nextLine().split("\t");
 			
-			// If it's Web data, reconfigure it.
-			if (pieces.length < 5) {
-				String[] webArray = {pieces[0], pieces[1], "0", "0", pieces[3]};
-				pieces = webArray;
+			// If it's Web data, set the boolean, reconfigure it.
+			boolean isWebData = currPin.length < 5;
+			if (isWebData) {
+				String[] webArray = {currPin[0], currPin[1], "0", "0", currPin[3]};
+				currPin = webArray;
 			}
-			
-			// If the application layer matches or ALL pins are wanted,
-			// create a Pin from the next line, put it in the list.
-			// Make pins from the rest of the file.
-			if (pieces[4].equalsIgnoreCase(PACKET_MODE) || allPackets) {
-				pinJar.add(new Pin(this, mapImage, pieces));
 				
-				// Running until there are no more lines in the file:
-				while(scotty.hasNextLine()) {
+			// Running until there are no more lines in the file:
+			boolean keepRunning = true;
+			while(keepRunning) {
+				
+				// Create a new queue of Pins.
+				Queue<Pin> pinJar = new LinkedList<Pin>();
+				
+				// If the application layer matches or ALL pins are wanted,
+				// create a Pin from currPin, put it in the list.
+				
+				// Iterate through the next several pins of the same timestamp,
+				// as they will also have the same application layer type.
+				if (currPin[4].equalsIgnoreCase(PACKET_MODE) || allPackets) {
 					
-					// Read in a line of data.
-					// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
-					pieces = scotty.nextLine().split("\t");
+					// Add the Pin to the queue.
+					pinJar.add(new Pin(this, mapImage, currPin));
+
+					// Get the next line.
+					String[] nextPin = scotty.nextLine().split("\t");
 					
-					// If it's Web data, reconfigure it.
-					if (pieces.length < 5) {
-						String[] webArray = {pieces[0], pieces[1], "0", "0", pieces[3]};
-						pieces = webArray;
+					// If it's web data, reconfigure it.
+					if (isWebData) {
+						String[] webArray = {nextPin[0], nextPin[1], "0", "0", nextPin[3]};
+						nextPin = webArray;
 					}
+
+					// While currPin and nextPin have the same timestamp,
+					// keep making pins and pushing them onto the queue.
+					while (currPin[1].equalsIgnoreCase(nextPin[1])) {
+						
+						// Add the pin to the list.
+						pinJar.add(new Pin(this, mapImage, nextPin));
+
+						// There are no more lines to read:
+						if (!scotty.hasNextLine()) {
+							keepRunning = false;
+							break;
+						}
+
+						// Drop the last pin, get the next pin.
+						currPin = nextPin;
+						nextPin = scotty.nextLine().split("\t");
+					}
+
+					// When they no longer have the same timestamp, or out of lines:
+
+					// Package the Pins in a PinCollection, put it in the PriorityQueue.
+					// Ensures usage of currPin's timestamp, which is the same
+					// as the rest of the list.
+					PinsToDraw.add(new PinCollection(currPin[1], pinJar));
 					
-					// Add it into the container.
-					pinJar.add(new Pin(this, mapImage, pieces));
-				}
+					// Save the nextPin (which has the new timestamp) into currPin.
+					currPin = nextPin;
 				
-			// Otherwise, continue to the next file.	
-			} else {
-				continue;
+				// Otherwise, advance the scanner by a line.
+				} else if (scotty.hasNextLine()) {
+					currPin = scotty.nextLine().split("\t");
+				
+				// Otherwise, break the whole loop.
+				} else {
+					break;
+				}
 			}
-			
-			// Package the Pins in a PinCollection, put it in the PriorityQueue.
-			// Ensures usage of currPin's timestamp, which is the same
-			// as the rest of the list.
-			PinsToDraw.add(new PinCollection(vizFiles[i].getName(), pinJar));
 		}
 	}
 	
