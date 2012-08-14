@@ -182,13 +182,14 @@ public class TorNetViz extends PApplet {
 		// initializes the advancement mechanism.
 		public TimeStamp(String s, int minInc) {
 			String[] chopped = s.split("[_\\-:]");
-			for (int i = 0; i < 4; i++) {
+			for (int i = 0; i < 5; i++) {
 				int temp = parseInt(chopped[i]);
 				switch (i) {
 					case 0: year = temp; break;
 					case 1: month = temp; break;
 					case 2: date = temp; break;
 					case 3: hour = temp; break;
+					case 4: minute = temp; break;
 				}
 			}
 			
@@ -390,6 +391,11 @@ public class TorNetViz extends PApplet {
 					// keep making pins and pushing them onto the queue.
 					while (currPin[1].equalsIgnoreCase(nextPin[1])) {
 						
+						if (nextPin.length < 5 && !isWebData) {
+							nextPin = scotty.nextLine().split("\t");
+							continue;
+						}
+						
 						// Add the pin to the list.
 						pinJar.add(new Pin(this, mapImage, nextPin, isWebData));
 
@@ -435,7 +441,6 @@ public class TorNetViz extends PApplet {
 		// Now we have to update the Pins.	
 		// Keep drawing everything in the Priority Queue.
 		while (!PinsToDraw.isEmpty() && PinsToDraw.peek().getPinTime().compareTo(clock) <= 0) {
-			System.err.println("Drawing set of pins.");
 			PinsToDraw.remove().drawThesePins();
 		}
 	}
