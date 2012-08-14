@@ -23,15 +23,16 @@ public class TorNetViz extends PApplet {
 	private final int WIDTH = 1024;
 	private final int HEIGHT = 600;
 	private final int FRAMERATE = 10;
-	private final int DOT_RADIUS = 2;
+	private final int DOT_RADIUS = 3;
 	
 	// configured in setup
 	private String DIRPATH;
 	private String PACKET_MODE;
 	private String STARTING_INPUT_STRING;
 	private String ENDING_INPUT_STRING;
-	private int INPUT_ONE_DAY_IN_SECS;
+	private int ONE_DAY_IN_SECS;
 	private int MAX_RESPONSE; // in ms
+	private int WEB_MAX_RESPONSE; // in sec
 	
 	// Hookup to the MaxMind database.
 	LookupService geoLookup;
@@ -102,7 +103,7 @@ public class TorNetViz extends PApplet {
 		private Pin LastKnown;
 		
 		// Constructor.
-		public Pin(PApplet p, PImage mapImage, String[] pieces) {
+		public Pin(PApplet p, PImage mapImage, String[] pieces, boolean isWebData) {
 			// Process the strings to get the IP address and the timestamp.
 			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
 			
@@ -125,16 +126,19 @@ public class TorNetViz extends PApplet {
 			} else if (response == -2) { // last known for unreached, yellow
 				this.red = 0xff;
 				this.green = 0xff;
+			} else if (isWebData) { // reached; web data
+				this.red = (int) (0xff * (response / WEB_MAX_RESPONSE));
+				this.green = (int) (0xff * ((WEB_MAX_RESPONSE - response) / WEB_MAX_RESPONSE));
 			} else { // reached; intensity of green correlates to speed.
 				this.red = (int) (0xff * (response / MAX_RESPONSE));
 				this.green = (int) (0xff * ((MAX_RESPONSE - response) / MAX_RESPONSE));
 			}
 			
 			// Set the LastKnown address Pin, if this is unreached.
-			if (response == -1) {
+			if (response == -1 && !isWebData) {
 				// Creates a string array to be processed by the next Pin constructor.
 				String[] LKPin = {pieces[3], pieces[1], "-2", "-1"};
-				LastKnown = new Pin(p, mapImage, LKPin);
+				LastKnown = new Pin(p, mapImage, LKPin, false);
 			} else {
 				LastKnown = null;
 			}
@@ -155,7 +159,8 @@ public class TorNetViz extends PApplet {
 		}
 	}
 	
-	// An object containing a year, month, date, hour, minute, and second.
+	// An object containing a year, month, date, hour, minute.
+	// No support for seconds.
 	// Used to mark PinCollections with their time, and to keep track of a
 	// simulated clock.
 	private class TimeStamp implements Comparable<TimeStamp> {
@@ -283,7 +288,10 @@ public class TorNetViz extends PApplet {
 		// Setup the clock at a rounded increment.
 			// [data time] 		(1440 mins / day) divided by
 			// [animation time] (FRAMERATE frames/second * INPUT seconds / day)
-		int minIncr = 1440 / (FRAMERATE * INPUT_ONE_DAY_IN_SECS);
+		int minIncr = 1440 / (FRAMERATE * ONE_DAY_IN_SECS);
+		if (minIncr < 1) {
+			minIncr = 1;
+		}
 		clock = new TimeStamp(STARTING_INPUT_STRING, minIncr);
 		
 		// Fetch and process files into Pins.
@@ -309,8 +317,9 @@ public class TorNetViz extends PApplet {
 		PACKET_MODE = theArgs.nextLine(); // second line
 		STARTING_INPUT_STRING = theArgs.nextLine(); // third line
 		ENDING_INPUT_STRING = theArgs.nextLine(); // fourth line
-		INPUT_ONE_DAY_IN_SECS = theArgs.nextInt(); // fifth line
+		ONE_DAY_IN_SECS = theArgs.nextInt(); // fifth line
 		MAX_RESPONSE = theArgs.nextInt(); // sixth line
+		WEB_MAX_RESPONSE = theArgs.nextInt(); // seventh line
 	}
 	
 	// Make Pin objects from each line of the input files.
@@ -319,6 +328,9 @@ public class TorNetViz extends PApplet {
 		
 		// Create the pin containers.
 		PinsToDraw = new PriorityQueue<PinCollection>();
+		
+		// Determine which packets are wanted.
+		boolean allPackets = PACKET_MODE.equalsIgnoreCase("ALL");
 		
 		// Open the directory.
 		File measures = new File(DIRPATH);
@@ -331,12 +343,9 @@ public class TorNetViz extends PApplet {
 					   file.getName().compareTo(ENDING_INPUT_STRING) <= 0;
 			}
 		};
-		
-		// Determine if all packets are wanted.
-		boolean allPackets = PACKET_MODE.equalsIgnoreCase("ALL");
 
 		// For each file in the array:
-		File[] vizFiles = measures.listFiles(filter);
+		File[] vizFiles = measures.listFiles(filter);		
 		for (int i = 0; i < vizFiles.length; i++) {
 
 			// Create a new scanner.
@@ -352,16 +361,14 @@ public class TorNetViz extends PApplet {
 			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
 			String[] currPin = scotty.nextLine().split("\t");
 			
+			// Get the last index of the array.
+			int lastIndex = currPin.length - 1;
+			
 			// If it's Web data, set the boolean, reconfigure it.
-			boolean isWebData = currPin.length < 5;
-			if (isWebData) {
-				String[] webArray = {currPin[0], currPin[1], "0", "0", currPin[3]};
-				currPin = webArray;
-			}
+			boolean isWebData = currPin[lastIndex].equalsIgnoreCase("WEB");
 				
 			// Running until there are no more lines in the file:
-			boolean keepRunning = true;
-			while(keepRunning) {
+			while(scotty.hasNextLine()) {
 				
 				// Create a new queue of Pins.
 				Queue<Pin> pinJar = new LinkedList<Pin>();
@@ -371,30 +378,23 @@ public class TorNetViz extends PApplet {
 				
 				// Iterate through the next several pins of the same timestamp,
 				// as they will also have the same application layer type.
-				if (currPin[4].equalsIgnoreCase(PACKET_MODE) || allPackets) {
+				if (currPin[lastIndex].equalsIgnoreCase(PACKET_MODE) || allPackets) {
 					
 					// Add the Pin to the queue.
-					pinJar.add(new Pin(this, mapImage, currPin));
+					pinJar.add(new Pin(this, mapImage, currPin, isWebData));
 
 					// Get the next line.
 					String[] nextPin = scotty.nextLine().split("\t");
-					
-					// If it's web data, reconfigure it.
-					if (isWebData) {
-						String[] webArray = {nextPin[0], nextPin[1], "0", "0", nextPin[3]};
-						nextPin = webArray;
-					}
 
 					// While currPin and nextPin have the same timestamp,
 					// keep making pins and pushing them onto the queue.
 					while (currPin[1].equalsIgnoreCase(nextPin[1])) {
 						
 						// Add the pin to the list.
-						pinJar.add(new Pin(this, mapImage, nextPin));
+						pinJar.add(new Pin(this, mapImage, nextPin, isWebData));
 
 						// There are no more lines to read:
 						if (!scotty.hasNextLine()) {
-							keepRunning = false;
 							break;
 						}
 
@@ -413,13 +413,13 @@ public class TorNetViz extends PApplet {
 					// Save the nextPin (which has the new timestamp) into currPin.
 					currPin = nextPin;
 				
-				// Otherwise, advance the scanner by a line.
-				} else if (scotty.hasNextLine()) {
-					currPin = scotty.nextLine().split("\t");
-				
-				// Otherwise, break the whole loop.
-				} else {
+				// If we don't want web data, or we're out of lines, break.
+				} else if (isWebData || !scotty.hasNextLine()) {
 					break;
+				
+				// Otherwise, advance the scanner by a line.
+				} else {
+					currPin = scotty.nextLine().split("\t");
 				}
 			}
 		}
@@ -435,6 +435,7 @@ public class TorNetViz extends PApplet {
 		// Now we have to update the Pins.	
 		// Keep drawing everything in the Priority Queue.
 		while (!PinsToDraw.isEmpty() && PinsToDraw.peek().getPinTime().compareTo(clock) <= 0) {
+			System.err.println("Drawing set of pins.");
 			PinsToDraw.remove().drawThesePins();
 		}
 	}
