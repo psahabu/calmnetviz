@@ -391,6 +391,7 @@ public class TorNetViz extends PApplet {
 					// keep making pins and pushing them onto the queue.
 					while (currPin[1].equalsIgnoreCase(nextPin[1])) {
 						
+						// Bad data, throw it out.
 						if (nextPin.length < 5 && !isWebData) {
 							nextPin = scotty.nextLine().split("\t");
 							continue;
