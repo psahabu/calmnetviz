@@ -181,7 +181,7 @@ public class TorNetViz extends PApplet {
 		// Constructs a timestamp from a particular format, and also
 		// initializes the advancement mechanism.
 		public TimeStamp(String s, int minInc) {
-			String[] chopped = s.split("[_\\-:]");
+			String[] chopped = s.split("[_\\-:.]");
 			for (int i = 0; i < 5; i++) {
 				int temp = parseInt(chopped[i]);
 				switch (i) {
@@ -357,7 +357,14 @@ public class TorNetViz extends PApplet {
 			    e.printStackTrace();
 			    continue;
 			}
-						
+			
+			// If the file is empty:
+			if (!scotty.hasNextLine()) {
+				
+				// Continue to the next one.
+				continue;
+			}
+			
 			// Read in a line of data.
 			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
 			String[] currPin = scotty.nextLine().split("\t");
@@ -450,10 +457,9 @@ public class TorNetViz extends PApplet {
 			
 			// Save an image if the start and end strings are equal.
 			// Intention: When PNGs are produced, only a single viz file is
-			// chosen for drawing. Hence, the STARTING_INPUT_STRING is the
-			// timestamp filename.
+			// chosen for drawing.
 			if (STARTING_INPUT_STRING.equalsIgnoreCase(ENDING_INPUT_STRING)) {
-				save(STARTING_INPUT_STRING + "_" + PACKET_MODE + ".png");
+				save(PACKET_MODE + ".png");
 			}
 		
 			// Exit the program.
