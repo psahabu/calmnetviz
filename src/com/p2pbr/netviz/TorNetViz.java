@@ -25,7 +25,7 @@ public class TorNetViz extends PApplet {
 	private final int FRAMERATE = 10;
 	private final int DOT_RADIUS = 3;
 	
-	// configured in setup
+	// configured in setup, psuedo-arguments
 	private String DIRPATH;
 	private String PACKET_MODE;
 	private String STARTING_INPUT_STRING;
@@ -443,6 +443,21 @@ public class TorNetViz extends PApplet {
 		// Keep drawing everything in the Priority Queue.
 		while (!PinsToDraw.isEmpty() && PinsToDraw.peek().getPinTime().compareTo(clock) <= 0) {
 			PinsToDraw.remove().drawThesePins();
+		}
+		
+		// When the Priority Queue is empty:
+		if (PinsToDraw.isEmpty()) {
+			
+			// Save an image if the start and end strings are equal.
+			// Intention: When PNGs are produced, only a single viz file is
+			// chosen for drawing. Hence, the STARTING_INPUT_STRING is the
+			// timestamp filename.
+			if (STARTING_INPUT_STRING.equalsIgnoreCase(ENDING_INPUT_STRING)) {
+				save(STARTING_INPUT_STRING + "_" + PACKET_MODE + ".png");
+			}
+		
+			// Exit the program.
+			exit();
 		}
 	}
 	
