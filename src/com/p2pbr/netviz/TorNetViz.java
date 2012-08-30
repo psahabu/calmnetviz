@@ -23,7 +23,8 @@ public class TorNetViz extends PApplet {
 	private final int WIDTH = 1024;
 	private final int HEIGHT = 600;
 	private final int FRAMERATE = 10;
-	private final int DOT_RADIUS = 3;
+	private final int DOT_RADIUS = 2;
+	private final int CONSOLIDATED_DOT_RADIUS = 4;
 	
 	// configured in setup, psuedo-arguments
 	private String DIRPATH;
@@ -41,49 +42,13 @@ public class TorNetViz extends PApplet {
 	// A clock for drawing items in a timely manner. *cue rimshot*
 	private TimeStamp clock = null;
 	
-	// A priority queue of Pins. These are all loaded in at the
+	// A LinkedList of Pins. These are all loaded in at the
 	// beginning of the program, and are popped off and drawn if the
-	// LinkedList's timestamp matches the simulated clock.
-	private Queue<PinCollection> PinsToDraw;
-
-	// An object that keep together bunches of Pins and labels them with
-	// a common timestamp. More memory efficient, nice encapsulation.
-	// Lists should be LinkedLists, because deleting is important.
-	private class PinCollection implements Comparable<PinCollection> {
-		// Tracks the PinCollection's internal time.
-		private TimeStamp pinTime;
-		
-		// Stores all the Pins in a queue.
-		private Queue<Pin> pins;
-		
-		// Constructor makes a TimeStamp from a string, 
-		public PinCollection(String s, Queue<Pin> newPins) {
-			pinTime = new TimeStamp(s);
-			pins = newPins;
-		}
-		
-		// Iterates through all the Pins and draws them all.
-		public void drawThesePins() {
-			
-			// Drawing everything in the Queue.
-			while (!pins.isEmpty()) {
-				pins.remove().drawSelf();
-			}
-		}
-		
-		// Return the pinTime.
-		public TimeStamp getPinTime() {
-			return pinTime;
-		}
-		
-		// Compare method to implement Comparable. Calls TimeStamp comparable.
-		public int compareTo(PinCollection other) {
-			return pinTime.compareTo(other.pinTime);
-		}
-	}
+	// timestamp matches the simulated clock.
+	private LinkedList<Pin> PinsToDraw;
 	
 	// An object that can be drawn on the map by Processing.
-	private class Pin {
+	private class Pin implements Comparable<Pin> {
 		// For Processing.
 		@SuppressWarnings("unused")
 		PApplet parent;
@@ -94,15 +59,21 @@ public class TorNetViz extends PApplet {
 		public float x;
 		public float y;
 		
+		// Consolidation boolean to determine drawing size.
+		boolean consolidated;
+		
 		// Color. Used for drawing.		
-		int red = 0x00;
-		int green = 0x00;
-		// int blue is excluded, as it's never modified.	
+		public int red;
+		public int green;
+		// int blue is excluded, as it's never modified.
+		
+		// Timestamp for drawing.
+		public TimeStamp pinTime;
 		
 		// Last known address Pin, if unreached. Otherwise, null.
 		private Pin LastKnown;
 		
-		// Constructor.
+		// Primary constructor.
 		public Pin(PApplet p, PImage mapImage, String[] pieces, boolean isWebData) {
 			// Process the strings to get the IP address and the timestamp.
 			// [0] ip, [1] timestamp, [2] response time, [3] last known ip, [4] application layer
@@ -115,6 +86,9 @@ public class TorNetViz extends PApplet {
 			this.mapImage = mapImage;
 			this.x = map(latlon[1], -180, 180, mapX, mapX+mapImage.width); // uses lon
 			this.y = map(latlon[0], 90, -90, mapY, mapY+mapImage.height); // uses lat
+			
+			// Using this constructor means the pin is not consolidated.
+			consolidated = false;
 			
 			// Get the response time.
 			float response = parseFloat(pieces[2]);
@@ -134,6 +108,9 @@ public class TorNetViz extends PApplet {
 				this.green = (int) (0xff * ((MAX_RESPONSE - response) / MAX_RESPONSE));
 			}
 			
+			// Set pinTime.
+			pinTime = new TimeStamp(pieces[1]);
+			
 			// Set the LastKnown address Pin, if this is unreached.
 			if (response == -1 && !isWebData) {
 				// Creates a string array to be processed by the next Pin constructor.
@@ -144,8 +121,34 @@ public class TorNetViz extends PApplet {
 			}
 		}
 		
+		// Consolidation constructor.
+		public Pin(PApplet p, PImage mapImage, float x, float y, float successRate, TimeStamp time) {
+			
+			// Initialize drawing stuff.
+			this.parent = p;
+			this.mapImage = mapImage;
+			this.x = x;
+			this.y = y;
+			
+			// Using this constructor means the pin is consolidated.
+			consolidated = true;
+			
+			// Use the success rate to determine color.
+			this.red = (int) (0xff * (1 - successRate));
+			this.green = (int) (0xff * successRate);
+			
+			// Set pinTime.
+			pinTime = time;
+			
+			// Set LastKnown to null.
+			LastKnown = null;
+		}
+		
 		// Well duh.
 		public void drawSelf() {
+			
+			// REMOVE: print debugging.
+			System.err.println(consolidated + "\t" + red + "\t" + green);
 			
 			// Draw the last known reached location, if unreached.
 			if (LastKnown != null) {
@@ -155,7 +158,38 @@ public class TorNetViz extends PApplet {
 			// Actually draw the sucker.
 			fill(red, green, 0x00);
 			stroke(red, green, 0x00);
-			ellipse(this.x, this.y, DOT_RADIUS, DOT_RADIUS);
+			
+			// Draws consolidated pins:
+			if (consolidated) {
+				ellipse(this.x, this.y, CONSOLIDATED_DOT_RADIUS, CONSOLIDATED_DOT_RADIUS);
+			
+			// Draws single pins:
+			} else {
+				ellipse(this.x, this.y, DOT_RADIUS, DOT_RADIUS);
+			}
+		}
+
+		// The default sorting method, sorting by Lat/Long.
+		public int compareTo(Pin other) {
+			if (x == other.x) {
+				if (y == other.y) {
+					return this.pinTime.compareTo(other.pinTime);
+				} else {
+					float dy = y - other.y;
+					if (dy < 0) {
+						return -1;
+					} else {
+						return 1;
+					}
+				}
+			} else {
+				float dx = x - other.x;
+				if (dx < 0) {
+					return -1;
+				} else {
+					return 1;
+				}
+			}
 		}
 	}
 	
@@ -166,7 +200,7 @@ public class TorNetViz extends PApplet {
 	private class TimeStamp implements Comparable<TimeStamp> {
 		// Year zero is the year 2000. Heresy indeed.
 		// Discarded seconds.
-		int year; int month; int date; int hour; int minute;
+		byte year; byte month; byte date; byte hour; byte minute;
 		
 		// Minutes and hours to increment the TimeStamp by on an advancement call.
 		int minIncrement; int hrIncrement;
@@ -183,7 +217,7 @@ public class TorNetViz extends PApplet {
 		public TimeStamp(String s, int minInc) {
 			String[] chopped = s.split("[_\\-:.]");
 			for (int i = 0; i < 5; i++) {
-				int temp = parseInt(chopped[i]);
+				byte temp = Byte.parseByte(chopped[i]);
 				switch (i) {
 					case 0: year = temp; break;
 					case 1: month = temp; break;
@@ -248,7 +282,7 @@ public class TorNetViz extends PApplet {
 			return subCompare(year, other.year);
 		}
 					
-		private int subCompare(int ours, int others) {
+		private int subCompare(byte ours, byte others) {
 			if (ours < others) {
 				return -1;
 			} else if (ours > others) {
@@ -297,7 +331,8 @@ public class TorNetViz extends PApplet {
 		
 		// Fetch and process files into Pins.
 		try {
-			CreatePins();
+			Queue<Pin> temp = CreatePins();
+			ConsolidatePins(temp);
 		} catch (FileNotFoundException ignored) {
 			ignored.printStackTrace();
 		}
@@ -325,12 +360,12 @@ public class TorNetViz extends PApplet {
 	
 	// Make Pin objects from each line of the input files.
 	// All .viz files are in a single location, labelled by timestamp.
-	private void CreatePins() throws FileNotFoundException {
+	private Queue<Pin> CreatePins() throws FileNotFoundException {
 		
-		// Create the pin containers.
-		PinsToDraw = new PriorityQueue<PinCollection>();
+		// Readies a PriorityQueue as temp storage.
+		Queue<Pin> retVal = new PriorityQueue<Pin>();
 		
-		// Determine which packets are wanted.
+		// Determine if all packets are wanted.
 		boolean allPackets = PACKET_MODE.equalsIgnoreCase("ALL");
 		
 		// Open the directory.
@@ -374,70 +409,106 @@ public class TorNetViz extends PApplet {
 			
 			// If it's Web data, set the boolean, reconfigure it.
 			boolean isWebData = currPin[lastIndex].equalsIgnoreCase("WEB");
+			
+			// Add the pin to the list.
+			retVal.add(new Pin(this, mapImage, currPin, isWebData));
 				
 			// Running until there are no more lines in the file:
 			while(scotty.hasNextLine()) {
 				
-				// Create a new queue of Pins.
-				Queue<Pin> pinJar = new LinkedList<Pin>();
+				// Get the next line.
+				currPin = scotty.nextLine().split("\t");
+				
+				// Bad data, throw it out.
+				if (currPin.length < 5 && !isWebData) {
+					currPin = scotty.nextLine().split("\t");
 				
 				// If the application layer matches or ALL pins are wanted,
 				// create a Pin from currPin, put it in the list.
 				
 				// Iterate through the next several pins of the same timestamp,
 				// as they will also have the same application layer type.
-				if (currPin[lastIndex].equalsIgnoreCase(PACKET_MODE) || allPackets) {
+				} else if (currPin[lastIndex].equalsIgnoreCase(PACKET_MODE) || allPackets) {
 					
 					// Add the Pin to the queue.
-					pinJar.add(new Pin(this, mapImage, currPin, isWebData));
-
-					// Get the next line.
-					String[] nextPin = scotty.nextLine().split("\t");
-
-					// While currPin and nextPin have the same timestamp,
-					// keep making pins and pushing them onto the queue.
-					while (currPin[1].equalsIgnoreCase(nextPin[1])) {
-						
-						// Bad data, throw it out.
-						if (nextPin.length < 5 && !isWebData) {
-							nextPin = scotty.nextLine().split("\t");
-							continue;
-						}
-						
-						// Add the pin to the list.
-						pinJar.add(new Pin(this, mapImage, nextPin, isWebData));
-
-						// There are no more lines to read:
-						if (!scotty.hasNextLine()) {
-							break;
-						}
-
-						// Drop the last pin, get the next pin.
-						currPin = nextPin;
-						nextPin = scotty.nextLine().split("\t");
-					}
-
-					// When they no longer have the same timestamp, or out of lines:
-
-					// Package the Pins in a PinCollection, put it in the PriorityQueue.
-					// Ensures usage of currPin's timestamp, which is the same
-					// as the rest of the list.
-					PinsToDraw.add(new PinCollection(currPin[1], pinJar));
-					
-					// Save the nextPin (which has the new timestamp) into currPin.
-					currPin = nextPin;
-				
-				// If we don't want web data, or we're out of lines, break.
-				} else if (isWebData || !scotty.hasNextLine()) {
-					break;
-				
-				// Otherwise, advance the scanner by a line.
-				} else {
-					currPin = scotty.nextLine().split("\t");
+					retVal.add(new Pin(this, mapImage, currPin, isWebData));
 				}
 			}
 		}
+		return retVal;
 	}
+	
+	// Takes the list of Pins and consolidates those with the same LatLong,
+	// then reorders them by timestamp in a list for drawing.
+	public void ConsolidatePins(Queue<Pin> temp) {
+		
+		// Create the pin container.
+		PinsToDraw = new LinkedList<Pin>();
+		
+		// Get the very first pin.
+		Pin leader = temp.remove();
+		
+		// While the list is not empty:
+		while (!temp.isEmpty()) {
+			
+			// Data about reached/unreached.
+			int reached = 0; 
+			int total = 1;
+			
+			// Check if leader was reached.
+			if (leader.red != 0xFF && leader.green != 0x00) {
+				reached++;
+			}
+			
+			// Repeatedly:
+			while (!temp.isEmpty()) {
+				
+				// Get the next pin.
+				Pin current = temp.remove();
+				
+				// If their LatLongs match:
+				if (current.x == leader.x && current.y == leader.y) {
+					
+					// Check if current was reached:
+					if (current.red != 0xFF && current.green != 0x00) {
+						reached++;
+					}
+					
+					// Increment total.
+					total++;
+					
+				// Otherwise:
+				} else {
+					
+					// If no LatLongs matched leader:
+					if (total == 1) {
+						
+						// Add leader to the PinsToDraw list.
+						PinsToDraw.add(leader);
+					
+					// Otherwise, construct a Consolidated Pin, push it onto the list.
+					} else {
+						PinsToDraw.add(new Pin(this, mapImage, leader.x, leader.y, (float)reached / total, leader.pinTime));
+					}
+					
+					// REMOVE: error printing
+					System.err.println(reached + " / " + total);
+					
+					// Save current as the next leader, then break the loop.
+					leader = current;
+					break;
+				}
+			}
+		}
+		
+		// Sort PinsToDraw by TimeStamp.
+		Collections.sort(PinsToDraw, new Comparator<Pin>() {
+			public int compare(Pin one, Pin two) {
+				return one.pinTime.compareTo(two.pinTime);
+			}
+		});
+	}
+			
 	
 	// Called by Processing, FRAMERATE number of times a second.
 	// Check the pins in the PriorityQueue, put the appropriate ones
@@ -445,14 +516,13 @@ public class TorNetViz extends PApplet {
 	public void draw() {
 		// Advance the clock by a precalculated amount of time.
 		clock.AdvanceClock();
-		
-		// Now we have to update the Pins.	
+			
 		// Keep drawing everything in the Priority Queue.
-		while (!PinsToDraw.isEmpty() && PinsToDraw.peek().getPinTime().compareTo(clock) <= 0) {
-			PinsToDraw.remove().drawThesePins();
+		while (!PinsToDraw.isEmpty() && PinsToDraw.peek().pinTime.compareTo(clock) <= 0) {
+			PinsToDraw.remove().drawSelf();
 		}
 		
-		// When the Priority Queue is empty:
+		// When the list of things to draw is empty:
 		if (PinsToDraw.isEmpty()) {
 			
 			// Save an image if the start and end strings are equal.
@@ -484,8 +554,5 @@ public class TorNetViz extends PApplet {
 		float[] latlon = {lat, lon};
 		return latlon;
 	}
-
-	// Removed main method, because it's handled by Runner, I think.
-	// Easy to reinstate from NetViz if needed.
 }
 
