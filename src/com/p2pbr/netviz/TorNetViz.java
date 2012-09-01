@@ -45,7 +45,7 @@ public class TorNetViz extends PApplet {
 	// A LinkedList of Pins. These are all loaded in at the
 	// beginning of the program, and are popped off and drawn if the
 	// timestamp matches the simulated clock.
-	private LinkedList<Pin> PinsToDraw;
+	private List<Pin> PinsToDraw;
 	
 	// An object that can be drawn on the map by Processing.
 	private class Pin implements Comparable<Pin> {
@@ -146,9 +146,6 @@ public class TorNetViz extends PApplet {
 		
 		// Well duh.
 		public void drawSelf() {
-			
-			// REMOVE: print debugging.
-			System.err.println(consolidated + "\t" + red + "\t" + green);
 			
 			// Draw the last known reached location, if unreached.
 			if (LastKnown != null) {
@@ -331,8 +328,7 @@ public class TorNetViz extends PApplet {
 		
 		// Fetch and process files into Pins.
 		try {
-			Queue<Pin> temp = CreatePins();
-			ConsolidatePins(temp);
+			ConsolidatePins(CreatePins());
 		} catch (FileNotFoundException ignored) {
 			ignored.printStackTrace();
 		}
@@ -490,9 +486,6 @@ public class TorNetViz extends PApplet {
 					} else {
 						PinsToDraw.add(new Pin(this, mapImage, leader.x, leader.y, (float)reached / total, leader.pinTime));
 					}
-					
-					// REMOVE: error printing
-					System.err.println(reached + " / " + total);
 					
 					// Save current as the next leader, then break the loop.
 					leader = current;
