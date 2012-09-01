@@ -45,7 +45,7 @@ public class TorNetViz extends PApplet {
 	// A LinkedList of Pins. These are all loaded in at the
 	// beginning of the program, and are popped off and drawn if the
 	// timestamp matches the simulated clock.
-	private List<Pin> PinsToDraw;
+	private LinkedList<Pin> PinsToDraw;
 	
 	// An object that can be drawn on the map by Processing.
 	private class Pin implements Comparable<Pin> {
